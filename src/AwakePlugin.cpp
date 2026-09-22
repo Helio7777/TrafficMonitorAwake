@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <objidl.h>
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <gdiplus.h>
 #include <utility>
@@ -86,7 +87,10 @@ void DrawStatusIcon(HDC hdc, int x, int y, int w, int h,
                  (doubleLine ? 32.0f : 20.0f) * scale));
     const REAL capsuleWidth = std::min(static_cast<REAL>(w) - edge * 2.0f,
         std::max(34.0f * scale, capsuleHeight * 1.55f));
-    const RectF capsule(x + (w - capsuleWidth) / 2.0f,
+    // Snap the shared center once. Capsule, glyph and composite display mark
+    // must all use exactly the same center to avoid a one-pixel optical drift.
+    const REAL cellCenterX = std::floor((static_cast<REAL>(x) + w * 0.5f) * 2.0f) / 2.0f;
+    const RectF capsule(cellCenterX - capsuleWidth / 2.0f,
                         y + (h - capsuleHeight) / 2.0f,
                         capsuleWidth, capsuleHeight);
     const float size = std::min({ capsuleHeight - 4.0f * scale,
@@ -96,7 +100,7 @@ void DrawStatusIcon(HDC hdc, int x, int y, int w, int h,
         return;
 
     const bool hasDisplayBadge = snap.keepDisplayOn && snap.requestApplied && snap.mode != AwakeManager::Mode::Off;
-    const REAL statusCenter = capsule.X + capsule.Width * 0.50f;
+    const REAL statusCenter = cellCenterX;
     const REAL left = statusCenter - size / 2.0f;
     const REAL top = capsule.Y + (capsule.Height - size) / 2.0f;
     const REAL center = size / 2.0f;
@@ -136,7 +140,7 @@ void DrawStatusIcon(HDC hdc, int x, int y, int w, int h,
         // Composite “display-on” glyph: a monitor outline containing a
         // power mark. It communicates one feature without a second badge.
         const REAL monitorLeft = left + size * 0.16f;
-        const REAL monitorTop = top + size * 0.20f;
+        const REAL monitorTop = top + size * 0.16f;
         const REAL monitorWidth = size * 0.68f;
         const REAL monitorHeight = size * 0.48f;
         graphics.DrawRectangle(&glyph, monitorLeft, monitorTop,
@@ -149,9 +153,10 @@ void DrawStatusIcon(HDC hdc, int x, int y, int w, int h,
                           monitorTop + monitorHeight + size * 0.14f,
                           monitorLeft + monitorWidth * 0.70f,
                           monitorTop + monitorHeight + size * 0.14f);
-        graphics.DrawLine(&glyph, cx, top + size * 0.30f,
-                          cx, top + size * 0.50f);
-        const RectF powerArc(left + size * 0.30f, top + size * 0.27f,
+        const REAL markCenterX = cellCenterX;
+        graphics.DrawLine(&glyph, markCenterX, top + size * 0.28f,
+                          markCenterX, top + size * 0.48f);
+        const RectF powerArc(left + size * 0.30f, top + size * 0.25f,
                              size * 0.40f, size * 0.40f);
         graphics.DrawArc(&glyph, powerArc, 42.0f, 276.0f);
     }
