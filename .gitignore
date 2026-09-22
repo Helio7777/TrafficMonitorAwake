@@ -8,6 +8,7 @@ CMakeUserPresets.json
 # Local build and packaging output
 dist/
 artifact/
+release-assets/
 *.dll
 *.lib
 *.exp
