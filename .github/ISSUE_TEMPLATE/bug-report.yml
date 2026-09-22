@@ -1,0 +1,42 @@
+name: Bug report
+description: 报告可复现的问题
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 请先搜索已有 Issue，并确认使用的是最新版本。
+  - type: input
+    id: version
+    attributes:
+      label: 插件版本
+      placeholder: 例如 v1.0.0 或 commit SHA
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      placeholder: Windows 11 24H2 / TrafficMonitor 1.x / x64
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请给出最小、可重复的步骤。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为与日志
+      description: 可附截图、powercfg /requests 输出或错误码。
+    validations:
+      required: true

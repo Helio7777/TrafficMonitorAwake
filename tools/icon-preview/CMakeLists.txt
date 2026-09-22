@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.20)
+project(AwakeIconPreview LANGUAGES CXX)
+add_executable(AwakeIconPreview preview.cpp ../../src/AwakeManager.cpp ../../src/AwakeOptionsDialog.cpp)
+target_compile_features(AwakeIconPreview PRIVATE cxx_std_17)
+target_compile_definitions(AwakeIconPreview PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX WINVER=0x0601 _WIN32_WINNT=0x0601)
+target_compile_options(AwakeIconPreview PRIVATE /W4 /permissive- /utf-8 /EHsc)
+target_link_libraries(AwakeIconPreview PRIVATE Comctl32 gdiplus)

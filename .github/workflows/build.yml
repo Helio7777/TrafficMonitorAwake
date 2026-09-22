@@ -1,0 +1,32 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64, Win32]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -A ${{ matrix.arch }}
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Collect DLL
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifact | Out-Null
+          $dll = Get-ChildItem build -Recurse -Filter TrafficMonitorAwake.dll | Select-Object -First 1
+          if (-not $dll) { throw 'TrafficMonitorAwake.dll not found' }
+          Copy-Item $dll.FullName artifact/TrafficMonitorAwake.dll
+          Copy-Item README.md, LICENSE artifact/
+          Compress-Archive -Path artifact/TrafficMonitorAwake.dll, artifact/README.md, artifact/LICENSE -DestinationPath "TrafficMonitorAwake-${{ matrix.arch }}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TrafficMonitorAwake-${{ matrix.arch }}
+          path: TrafficMonitorAwake-${{ matrix.arch }}.zip

@@ -1,0 +1,22 @@
+# CMake / Visual Studio generated files
+build-*/
+CMakeUserPresets.json
+.vs/
+*.user
+*.suo
+
+# Local build and packaging output
+dist/
+artifact/
+*.dll
+*.lib
+*.exp
+*.pdb
+*.ilk
+
+# Local editor and OS files
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini
