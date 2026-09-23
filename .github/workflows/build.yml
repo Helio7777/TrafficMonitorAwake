@@ -55,12 +55,61 @@ jobs:
           test -f release-assets/TrafficMonitorAwake-x64.zip
           test -f release-assets/TrafficMonitorAwake-Win32.zip
       - name: Publish GitHub Release
+        uses: actions/github-script@v7
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${{ github.ref_name }}" \
-            release-assets/TrafficMonitorAwake-x64.zip \
-            release-assets/TrafficMonitorAwake-Win32.zip \
-            --verify-tag \
-            --generate-notes \
-            --title "TrafficMonitor Awake ${{ github.ref_name }}"
+          RELEASE_TAG: ${{ github.ref_name }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const tag = process.env.RELEASE_TAG;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            let release;
+
+            try {
+              release = (await github.rest.repos.getReleaseByTag({ owner, repo, tag })).data;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              release = (await github.rest.repos.createRelease({
+                owner,
+                repo,
+                tag_name: tag,
+                target_commitish: context.sha,
+                name: `TrafficMonitor Awake ${tag}`,
+                generate_release_notes: true,
+                draft: true,
+                prerelease: false,
+              })).data;
+            }
+
+            const packageNames = fs.readdirSync('release-assets')
+              .filter((name) => name.endsWith('.zip'))
+              .sort();
+            const uploaded = new Set((release.assets || []).map((asset) => asset.name));
+
+            for (const name of packageNames) {
+              if (uploaded.has(name)) continue;
+              const file = path.join('release-assets', name);
+              await github.rest.repos.uploadReleaseAsset({
+                owner,
+                repo,
+                release_id: release.id,
+                name,
+                headers: {
+                  'content-type': 'application/zip',
+                  'content-length': fs.statSync(file).size,
+                },
+                data: fs.readFileSync(file),
+              });
+            }
+
+            if (release.draft) {
+              await github.rest.repos.updateRelease({
+                owner,
+                repo,
+                release_id: release.id,
+                draft: false,
+              });
+            }
