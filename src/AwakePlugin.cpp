@@ -46,6 +46,8 @@ COLORREF StatusColor(const AwakeManager::Snapshot& snap, bool darkMode)
 void DrawFlatBox(Graphics& graphics, const RectF& rect, REAL radius,
                  const Color& fill, const Color& border, REAL stroke)
 {
+    const REAL maxRadius = std::min(rect.Width, rect.Height) / 2.0f;
+    radius = std::clamp(radius, 0.0f, maxRadius);
     const REAL diameter = radius * 2.0f;
     GraphicsPath path;
     path.AddArc(rect.X, rect.Y, diameter, diameter, 180.0f, 90.0f);
@@ -294,7 +296,7 @@ const wchar_t* AwakePlugin::GetInfo(PluginInfoIndex index)
     case TMI_COPYRIGHT:
         return L"";
     case TMI_VERSION:
-        return L"1.0.1";
+        return L"1.0.2";
     case TMI_URL:
         return L"";
     default:

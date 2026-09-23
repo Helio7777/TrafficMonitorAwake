@@ -15,6 +15,7 @@ Run commands from a Visual Studio Developer PowerShell with CMake 3.20+ and the 
 - `powercfg /requests` checks the plugin's power request after installation in TrafficMonitor.
 
 CI repeats release builds for both architectures through `.github/workflows/build.yml`.
+Pushing a version tag such as `v1.0.2` also publishes both ZIP packages to a GitHub Release.
 
 ## Coding Style & Naming Conventions
 

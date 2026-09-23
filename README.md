@@ -38,6 +38,12 @@ TrafficMonitor 的 Windows 开源插件，用于临时阻止系统自动休眠�
 
 图标预览工具位于 `tools/icon-preview/`，仅用于开发验证，不会随插件安装。
 
+## 发布
+
+推送形如 `v1.0.2` 的 tag 会触发 GitHub Actions，自动构建 x64 和 Win32
+版本，并将两个 ZIP 包发布到同一个 GitHub Release。普通分支推送和 PR 只执行
+构建与构件上传，不会获得发布权限。
+
 ## 验证与故障排查
 
 安装后运行 `powercfg /requests`，应看到 TrafficMonitor 的系统电源请求；开启保持屏幕开启后还应看到显示器请求。报告问题时请附插件版本、Windows/TrafficMonitor 版本、架构、复现步骤和相关输出。

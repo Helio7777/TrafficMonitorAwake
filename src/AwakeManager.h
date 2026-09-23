@@ -60,7 +60,7 @@ private:
 
     bool CreatePowerRequestLocked();
     bool ApplyPowerRequestLocked();
-    void ClearPowerRequestLocked();
+    bool ClearPowerRequestLocked();
     void LoadConfigLocked();
     bool SaveConfigLocked();
 

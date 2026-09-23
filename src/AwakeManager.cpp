@@ -318,8 +318,12 @@ bool AwakeManager::CreatePowerRequestLocked()
 
 bool AwakeManager::ApplyPowerRequestLocked()
 {
-    ClearPowerRequestLocked();
     lastError_ = ERROR_SUCCESS;
+    if (!ClearPowerRequestLocked())
+    {
+        requestApplied_ = false;
+        return false;
+    }
 
     if (mode_ == Mode::Off)
     {
@@ -354,25 +358,47 @@ bool AwakeManager::ApplyPowerRequestLocked()
     return true;
 }
 
-void AwakeManager::ClearPowerRequestLocked()
+bool AwakeManager::ClearPowerRequestLocked()
 {
     if (!powerRequest_)
     {
         systemRequestActive_ = false;
         displayRequestActive_ = false;
-        return;
+        return true;
     }
 
+    bool ok = true;
     if (displayRequestActive_)
     {
-        PowerClearRequest(powerRequest_, PowerRequestDisplayRequired);
-        displayRequestActive_ = false;
+        if (PowerClearRequest(powerRequest_, PowerRequestDisplayRequired))
+            displayRequestActive_ = false;
+        else
+        {
+            ok = false;
+            if (lastError_ == ERROR_SUCCESS)
+            {
+                lastError_ = GetLastError();
+                if (lastError_ == ERROR_SUCCESS)
+                    lastError_ = ERROR_GEN_FAILURE;
+            }
+        }
     }
     if (systemRequestActive_)
     {
-        PowerClearRequest(powerRequest_, PowerRequestSystemRequired);
-        systemRequestActive_ = false;
+        if (PowerClearRequest(powerRequest_, PowerRequestSystemRequired))
+            systemRequestActive_ = false;
+        else
+        {
+            ok = false;
+            if (lastError_ == ERROR_SUCCESS)
+            {
+                lastError_ = GetLastError();
+                if (lastError_ == ERROR_SUCCESS)
+                    lastError_ = ERROR_GEN_FAILURE;
+            }
+        }
     }
+    return ok;
 }
 
 void AwakeManager::LoadConfigLocked()

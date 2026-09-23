@@ -30,3 +30,15 @@
 PR 描述应说明用户可见变化、测试架构和手动验证结果。UI 或图标改动请附
 浅色/深色背景截图；行为变化请说明兼容的 TrafficMonitor 版本和 Windows
 最低版本。提交信息使用简短的祈使句，例如 `Improve adaptive status icon`。
+
+## 发布
+
+发布前先确认双架构构建和导出检查均通过，然后创建并推送版本 tag，例如：
+
+```powershell
+git tag v1.0.2
+git push origin v1.0.2
+```
+
+`.github/workflows/build.yml` 会自动创建 GitHub Release，并附加 x64 与 Win32
+ZIP 包。不要在 tag 提交中直接提交 `build-*`、`dist` 或本地发布目录。

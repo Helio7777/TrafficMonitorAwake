@@ -5,8 +5,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
+    permissions:
+      contents: read
     runs-on: windows-latest
     strategy:
       matrix:
@@ -25,8 +30,37 @@ jobs:
           if (-not $dll) { throw 'TrafficMonitorAwake.dll not found' }
           Copy-Item $dll.FullName artifact/TrafficMonitorAwake.dll
           Copy-Item README.md, LICENSE artifact/
-          Compress-Archive -Path artifact/TrafficMonitorAwake.dll, artifact/README.md, artifact/LICENSE -DestinationPath "TrafficMonitorAwake-${{ matrix.arch }}.zip"
+          Compress-Archive -Path artifact/* -DestinationPath "TrafficMonitorAwake-${{ matrix.arch }}.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: TrafficMonitorAwake-${{ matrix.arch }}
           path: TrafficMonitorAwake-${{ matrix.arch }}.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download architecture packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: TrafficMonitorAwake-*
+          path: release-assets
+          merge-multiple: true
+      - name: Validate release packages
+        shell: bash
+        run: |
+          test -f release-assets/TrafficMonitorAwake-x64.zip
+          test -f release-assets/TrafficMonitorAwake-Win32.zip
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            release-assets/TrafficMonitorAwake-x64.zip \
+            release-assets/TrafficMonitorAwake-Win32.zip \
+            --verify-tag \
+            --generate-notes \
+            --title "TrafficMonitor Awake ${{ github.ref_name }}"
