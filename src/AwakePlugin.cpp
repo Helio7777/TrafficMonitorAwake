@@ -289,7 +289,7 @@ const wchar_t* AwakePlugin::GetInfo(PluginInfoIndex index)
     case TMI_COPYRIGHT:
         return L"";
     case TMI_VERSION:
-        return L"1.0.2";
+        return L"1.0.3";
     case TMI_URL:
         return L"";
     default:
