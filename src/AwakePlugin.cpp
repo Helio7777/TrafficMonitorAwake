@@ -34,32 +34,33 @@ bool IsPresetChecked(const AwakeManager::Snapshot& snap, unsigned int minutes)
 
 COLORREF StatusColor(const AwakeManager::Snapshot& snap, bool darkMode)
 {
+    if (!snap.requestApplied && snap.lastError != ERROR_SUCCESS)
+        return RGB(220, 62, 72);
     if (snap.mode == AwakeManager::Mode::Off)
-        return darkMode ? RGB(100, 116, 139) : RGB(71, 85, 105);
+        return darkMode ? RGB(51, 65, 85) : RGB(226, 232, 240);
     if (!snap.requestApplied)
-        return RGB(239, 68, 68);
+        return RGB(220, 62, 72);
     if (snap.mode == AwakeManager::Mode::Indefinite)
-        return RGB(16, 185, 129);
-    return RGB(245, 158, 11);
+        return RGB(5, 150, 105);
+    return RGB(217, 119, 6);
 }
 
-void DrawFlatBox(Graphics& graphics, const RectF& rect, REAL radius,
-                 const Color& fill, const Color& border, REAL stroke)
+void AddRoundedBox(GraphicsPath& path, const RectF& rect, REAL radius)
 {
     const REAL maxRadius = std::min(rect.Width, rect.Height) / 2.0f;
     radius = std::clamp(radius, 0.0f, maxRadius);
+    if (radius <= 0.0f)
+    {
+        path.AddRectangle(rect);
+        return;
+    }
     const REAL diameter = radius * 2.0f;
-    GraphicsPath path;
     path.AddArc(rect.X, rect.Y, diameter, diameter, 180.0f, 90.0f);
     path.AddArc(rect.GetRight() - diameter, rect.Y, diameter, diameter, 270.0f, 90.0f);
     path.AddArc(rect.GetRight() - diameter, rect.GetBottom() - diameter,
                 diameter, diameter, 0.0f, 90.0f);
     path.AddArc(rect.X, rect.GetBottom() - diameter, diameter, diameter, 90.0f, 90.0f);
     path.CloseFigure();
-    SolidBrush brush(fill);
-    Pen pen(border, stroke);
-    graphics.FillPath(&brush, &path);
-    graphics.DrawPath(&pen, &path);
 }
 
 
@@ -82,116 +83,108 @@ void DrawStatusIcon(HDC hdc, int x, int y, int w, int h,
     // DPI; deriving scale from it stretches a capsule into a long bar.
     const float scale = std::max(1.0f, dpi / 96.0f);
     const bool doubleLine = h > 22.0f * scale;
-    const bool tinyRow = h <= 18.0f * scale;
-    const float edge = (tinyRow ? 0.5f : 1.5f) * scale;
-    const REAL capsuleHeight = std::max(7.0f * scale,
-        std::min(static_cast<REAL>(h) - edge * 2.0f,
-                 (doubleLine ? 32.0f : 20.0f) * scale));
-    const REAL capsuleWidth = std::min(static_cast<REAL>(w) - edge * 2.0f,
-        std::max(34.0f * scale, capsuleHeight * 1.55f));
-    // Snap the shared center once. Capsule, glyph and composite display mark
-    // must all use exactly the same center to avoid a one-pixel optical drift.
-    const REAL cellCenterX = std::floor((static_cast<REAL>(x) + w * 0.5f) * 2.0f) / 2.0f;
-    const RectF capsule(cellCenterX - capsuleWidth / 2.0f,
-                        y + (h - capsuleHeight) / 2.0f,
-                        capsuleWidth, capsuleHeight);
-    const float size = std::min({ capsuleHeight - 4.0f * scale,
-                                  (doubleLine ? 24.0f : 18.0f) * scale,
-                                  capsuleWidth * (doubleLine ? 0.56f : 0.46f) });
-    if (size < 7)
+    const REAL capsuleWidth = std::min(34.0f * scale,
+                                       static_cast<REAL>(w) - 2.0f * scale);
+    // Preserve a horizontal capsule even in a narrow two-row host cell.
+    const REAL capsuleHeight = std::min({static_cast<REAL>(h) - 2.0f * scale,
+                                         (doubleLine ? 24.0f : 18.0f) * scale,
+                                         capsuleWidth / 1.4f});
+    if (capsuleHeight < 6.0f || capsuleWidth < 8.0f)
         return;
 
+    const REAL cx = static_cast<REAL>(x) + w * 0.5f;
+    const REAL cy = static_cast<REAL>(y) + h * 0.5f;
+    const RectF capsule(cx - capsuleWidth / 2.0f,
+                        cy - capsuleHeight / 2.0f,
+                        capsuleWidth, capsuleHeight);
+    const REAL size = capsuleHeight * 0.72f;
     const bool hasDisplayBadge = snap.keepDisplayOn && snap.requestApplied && snap.mode != AwakeManager::Mode::Off;
-    const REAL statusCenter = cellCenterX;
-    const REAL left = statusCenter - size / 2.0f;
-    const REAL top = capsule.Y + (capsule.Height - size) / 2.0f;
-    const REAL center = size / 2.0f;
+    const bool hasError = !snap.requestApplied &&
+        (snap.mode != AwakeManager::Mode::Off || snap.lastError != ERROR_SUCCESS);
     const COLORREF rgb = StatusColor(snap, darkMode);
     const Color status(255, GetRValue(rgb), GetGValue(rgb), GetBValue(rgb));
-    Graphics graphics(hdc);
+    // Render only the badge at 4x resolution; the buffer is independent of the
+    // host cell width. Downsampling keeps small curves and stems consistent.
+    constexpr int kRenderScale = 4;
+    constexpr REAL kRenderMargin = 2.0f;
+    const int imageWidth = static_cast<int>(std::ceil(capsuleWidth + kRenderMargin * 2.0f));
+    const int imageHeight = static_cast<int>(std::ceil(capsuleHeight + kRenderMargin * 2.0f));
+    const REAL imageX = cx - imageWidth * 0.5f;
+    const REAL imageY = cy - imageHeight * 0.5f;
+    Bitmap badge(imageWidth * kRenderScale, imageHeight * kRenderScale, PixelFormat32bppPARGB);
+    if (badge.GetLastStatus() != Ok)
+        return;
+    Graphics graphics(&badge);
+    graphics.Clear(Color(0, 0, 0, 0));
+    graphics.ScaleTransform(static_cast<REAL>(kRenderScale), static_cast<REAL>(kRenderScale));
+    graphics.TranslateTransform(-imageX, -imageY);
     graphics.SetSmoothingMode(SmoothingModeAntiAlias);
     graphics.SetPixelOffsetMode(PixelOffsetModeHalf);
     graphics.SetCompositingMode(CompositingModeSourceOver);
-    graphics.SetClip(Rect(x, y, w, h), CombineModeIntersect);
 
-    const float stroke = (tinyRow ? 1.9f : 1.8f) * scale;
-    const bool filledBadge = snap.mode != AwakeManager::Mode::Off;
-    const Color flatFill(filledBadge ? 220 : 38,
-                         GetRValue(rgb), GetGValue(rgb), GetBValue(rgb));
-    DrawFlatBox(graphics, capsule, capsule.Height / 2.0f,
-                flatFill, status, std::max(1.0f, scale));
-    Pen outline(filledBadge ? Color(255, 255, 255, 255) : status, stroke);
-    outline.SetStartCap(LineCapRound);
-    outline.SetEndCap(LineCapRound);
-    outline.SetLineJoin(LineJoinRound);
-
-    // One recognizable silhouette, with no nested rings at small sizes.
-    const Color glyphColor = hasDisplayBadge
-        ? Color(255, 250, 190, 32)
-        : (filledBadge ? Color(255, 255, 255, 255) : status);
+    // Opaque, borderless fill avoids a dark rim and host-dependent alpha blend.
+    GraphicsPath capsulePath;
+    AddRoundedBox(capsulePath, capsule, capsule.Height / 2.0f);
+    SolidBrush background(status);
+    graphics.FillPath(&background, &capsulePath);
+    const bool inactive = snap.mode == AwakeManager::Mode::Off && !hasError;
+    const Color glyphColor = inactive
+        ? (darkMode ? Color(255, 203, 213, 225) : Color(255, 71, 85, 105))
+        : Color(255, 255, 255, 255);
+    const REAL stroke = std::max(1.0f, size * 0.105f + 0.15f * scale);
     Pen glyph(glyphColor, stroke);
     glyph.SetStartCap(LineCapRound);
     glyph.SetEndCap(LineCapRound);
     glyph.SetLineJoin(LineJoinRound);
-    REAL cx = static_cast<REAL>(left + center);
-    const REAL cy = static_cast<REAL>(top + center);
-    const REAL inset = stroke / 2.0f + scale;
+    const REAL radius = (size - stroke) / 2.0f;
+    const RectF ring(cx - radius, cy - radius, radius * 2.0f, radius * 2.0f);
 
     if (hasDisplayBadge)
     {
-        // Composite “display-on” glyph: a monitor outline containing a
-        // power mark. It communicates one feature without a second badge.
-        const REAL monitorLeft = left + size * 0.16f;
-        const REAL monitorTop = top + size * 0.16f;
-        const REAL monitorWidth = size * 0.68f;
-        const REAL monitorHeight = size * 0.48f;
-        graphics.DrawRectangle(&glyph, monitorLeft, monitorTop,
-                               monitorWidth, monitorHeight);
-        graphics.DrawLine(&glyph, monitorLeft + monitorWidth / 2.0f,
-                          monitorTop + monitorHeight,
-                          monitorLeft + monitorWidth / 2.0f,
-                          monitorTop + monitorHeight + size * 0.14f);
-        graphics.DrawLine(&glyph, monitorLeft + monitorWidth * 0.30f,
-                          monitorTop + monitorHeight + size * 0.14f,
-                          monitorLeft + monitorWidth * 0.70f,
-                          monitorTop + monitorHeight + size * 0.14f);
-        const REAL markCenterX = cellCenterX;
-        graphics.DrawLine(&glyph, markCenterX, top + size * 0.28f,
-                          markCenterX, top + size * 0.48f);
-        const RectF powerArc(left + size * 0.30f, top + size * 0.25f,
-                             size * 0.40f, size * 0.40f);
-        graphics.DrawArc(&glyph, powerArc, 42.0f, 276.0f);
+        // A single open screen silhouette remains legible at 100% DPI.
+        // Capsule color still distinguishes indefinite and timed wake modes.
+        const REAL screenHeight = size * 0.62f;
+        const REAL standHeight = size * 0.20f;
+        const REAL screenTop = cy - (screenHeight + standHeight) / 2.0f;
+        const RectF screen(cx - size * 0.55f, screenTop,
+                           size * 1.10f, screenHeight);
+        GraphicsPath screenPath;
+        AddRoundedBox(screenPath, screen, size * 0.10f);
+        graphics.DrawPath(&glyph, &screenPath);
+        const REAL baseY = screen.GetBottom() + standHeight;
+        graphics.DrawLine(&glyph, cx, screen.GetBottom(), cx, baseY);
+        graphics.DrawLine(&glyph, cx - size * 0.20f, baseY,
+                          cx + size * 0.20f, baseY);
     }
-    else if (!snap.requestApplied && snap.mode != AwakeManager::Mode::Off)
+    else if (hasError)
     {
-        graphics.DrawEllipse(&outline, left + inset, top + inset,
-                             size - inset * 2.0f, size - inset * 2.0f);
-        graphics.DrawLine(&glyph, cx, top + size * 0.30f,
-                          cx, top + size * 0.54f);
+        graphics.DrawLine(&glyph, cx, cy - size * 0.30f,
+                          cx, cy + size * 0.08f);
         SolidBrush dot(glyphColor);
         const REAL d = stroke / 2.0f;
-        graphics.FillEllipse(&dot, cx - d, top + size * 0.72f - d,
+        graphics.FillEllipse(&dot, cx - d, cy + size * 0.30f - d,
                              d * 2.0f, d * 2.0f);
     }
     else if (snap.mode == AwakeManager::Mode::Timed || snap.mode == AwakeManager::Mode::Until)
     {
-        graphics.DrawEllipse(&glyph, static_cast<REAL>(left) + inset,
-                             static_cast<REAL>(top) + inset,
-                             static_cast<REAL>(size) - inset * 2.0f,
-                             static_cast<REAL>(size) - inset * 2.0f);
-        graphics.DrawLine(&glyph, cx, cy, cx, top + size * 0.28f);
-        graphics.DrawLine(&glyph, cx, cy, left + size * 0.70f, cy + size * 0.10f);
+        graphics.DrawEllipse(&glyph, ring);
+        graphics.DrawLine(&glyph, cx, cy, cx, cy - radius * 0.54f);
+        graphics.DrawLine(&glyph, cx, cy, cx + radius * 0.46f, cy + radius * 0.26f);
     }
     else
     {
-        graphics.DrawLine(&glyph, cx, top + inset, cx, top + size * 0.48f);
-        const RectF arcRect(static_cast<REAL>(left) + inset,
-                            static_cast<REAL>(top) + inset,
-                            static_cast<REAL>(size) - inset * 2.0f,
-                            static_cast<REAL>(size) - inset * 2.0f);
-        graphics.DrawArc(&glyph, arcRect, -48.0f, 276.0f);
+        graphics.DrawLine(&glyph, cx, cy - radius, cx, cy - radius * 0.10f);
+        graphics.DrawArc(&glyph, ring, -48.0f, 276.0f);
     }
 
+    Graphics destination(hdc);
+    destination.SetClip(Rect(x, y, w, h), CombineModeIntersect);
+    destination.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+    destination.SetPixelOffsetMode(PixelOffsetModeHalf);
+    destination.DrawImage(&badge, RectF(imageX, imageY,
+                                      static_cast<REAL>(imageWidth), static_cast<REAL>(imageHeight)),
+                          0.0f, 0.0f, static_cast<REAL>(badge.GetWidth()),
+                          static_cast<REAL>(badge.GetHeight()), UnitPixel);
 }
 }
 

@@ -158,7 +158,7 @@ bool AwakeManager::Refresh()
         const bool saved = SaveConfigLocked();
         return ok && saved;
     }
-    return requestApplied_ || mode_ == Mode::Off;
+    return requestApplied_;
 }
 
 AwakeManager::Snapshot AwakeManager::GetSnapshot() const
@@ -170,11 +170,12 @@ AwakeManager::Snapshot AwakeManager::GetSnapshot() const
 std::wstring AwakeManager::GetShortStatus() const
 {
     const auto snap = GetSnapshot();
+    if (!snap.requestApplied &&
+        (snap.mode != Mode::Off || snap.lastError != ERROR_SUCCESS))
+        return L"错误";
+
     if (snap.mode == Mode::Off)
         return L"关";
-
-    if (!snap.requestApplied)
-        return L"错误";
 
     if (snap.mode == Mode::Indefinite)
         return snap.keepDisplayOn ? L"开+屏" : L"开";
@@ -221,13 +222,14 @@ std::wstring AwakeManager::GetTooltipText() const
                 text += L"\n结束：" + FormatLocalTime(snap.expiresAtUnix);
             }
         }
+    }
 
-        if (!snap.requestApplied)
-        {
-            wchar_t errorText[64]{};
-            swprintf_s(errorText, L"\n电源请求失败，错误码：%lu", snap.lastError);
-            text += errorText;
-        }
+    if (!snap.requestApplied &&
+        (snap.mode != Mode::Off || snap.lastError != ERROR_SUCCESS))
+    {
+        wchar_t errorText[64]{};
+        swprintf_s(errorText, L"\n电源请求失败，错误码：%lu", snap.lastError);
+        text += errorText;
     }
 
     if (snap.configError != ERROR_SUCCESS)
